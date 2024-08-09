@@ -3,6 +3,15 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# VSCode Files
+.vscode/
+
+# Jupyter notebook
+*.ipynb
+
+# Output Folder
+output/
+
 # C extensions
 *.so
 
