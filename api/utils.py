@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 
 from api.constants import OUTPUT_FOLDER
 
-
 def parse_date(timestamp:str) -> str:
     # get base datetime = Today
     today_datetime = datetime.now()
@@ -52,5 +51,5 @@ def export_dataframe(df:pd.DataFrame) -> None:
     df.to_excel(
         os.path.join(
             OUTPUT_FOLDER,
-            f'Execution_{datetime.now().isoformat()}.xlsx'),
+            f'Execution_{datetime.now().strftime("%Y%m%d-%H%M%S")}.xlsx'),
         index=False)

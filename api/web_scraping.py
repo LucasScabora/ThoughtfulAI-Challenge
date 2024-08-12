@@ -6,10 +6,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_random
+from tenacity import (retry, retry_if_exception_type,
+                      stop_after_attempt, wait_random)
 
 from api.utils import parse_date, download_image
-from api.constants import BASE_URL, TIMEOUT_SECONDS
+from api.constants import BASE_URL, TIMEOUT_SECONDS, CATEGORY_FILTER
 
 
 class WebScrapingError(Exception):
@@ -39,10 +40,11 @@ class WebScraping:
 
 
     @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
-           stop=stop_after_attempt(3), wait=wait_random(min=1, max=3)(1))
+           stop=stop_after_attempt(3), wait=wait_random(min=1, max=3))
     def open_webdriver(self):
         try:
             self.browser = Selenium()
+            self.browser.set_selenium_timeout(TIMEOUT_SECONDS)
             self.logger.debug('Opening Browser Chrome and loading Page')
             self.browser.open_available_browser(
                 browser_selection='Chrome',
@@ -53,11 +55,47 @@ class WebScraping:
             logging.exception(error)
             raise WebScrapingError
 
+    @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
+           stop=stop_after_attempt(3), wait=wait_random(min=1, max=3))
+    def add_category_filter(self) -> None:
+        try:
+            logging.info(f'Applying Category filter: {CATEGORY_FILTER}')
+
+            # Open Filters
+            self.browser.click_element_when_visible(
+                'class=SearchResultsModule-filters-open')
+
+            # Expand Categories
+            self.browser.click_element_when_visible(
+                'class=SearchFilter-content')
+
+            # Iterate over categories
+            categories_result = self.browser.find_elements(
+                'class=CheckboxInput-label')
+
+            # Click on the expected one
+            for category in categories_result:
+                if CATEGORY_FILTER in str(category.text).lower():
+                    category.click()
+                    logging.info(f'Checked filter: {category.text}')
+
+            # Apply filter (works even when no checkbox was selected)
+            self.browser.click_element_when_visible(
+                'class=SearchResultsModule-filters-applyButton')
+
+            logging.info(f'Applied Category filter: {CATEGORY_FILTER}')
+        except Exception as error:
+            logging.exception(error)
+            self.browser.driver.refresh()
+            raise WebScrapingError
+
 
     @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
-           stop=stop_after_attempt(3), wait=wait_random(min=1, max=3)(1))
+           stop=stop_after_attempt(3), wait=wait_random(min=1, max=3))
     def perform_search(self, search_string:str) -> None:
         try:
+            logging.info('Applying Newest sorting')
+
             # Click on magnifying glass
             self.browser.click_element_when_visible(
                 'class=SearchOverlay-search-button')
@@ -69,12 +107,12 @@ class WebScraping:
                 'class=SearchOverlay-search-submit')
 
             # Sort by Newest
-            sort_by_droplist = self.browser.find_element('class=Select-input')
+            sort_by_droplist = self.browser.find_element(
+                'class=Select-input')
             select = Select(sort_by_droplist)
             select.select_by_visible_text('Newest')
 
-            # Refresh page so the Timestamps appears
-            self.browser.driver.refresh()
+            logging.info('Applied Newest sorting')
         except Exception as error:
             logging.exception(error)
             self.browser.go_to(BASE_URL)
@@ -82,10 +120,13 @@ class WebScraping:
 
 
     @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
-           stop=stop_after_attempt(3), wait=wait_random(min=1, max=3)(1))
+           stop=stop_after_attempt(3), wait=wait_random(min=1, max=3))
     def process_results(self) -> pd.DataFrame:
         try:
-            # Wait for the search results
+            # Refresh page so the Timestamps appears
+            self.browser.driver.refresh()
+
+            # Wait for the search results to appear
             WebDriverWait(self.browser.driver, TIMEOUT_SECONDS).until(
                 EC.visibility_of_element_located(
                     (By.CLASS_NAME, 'SearchResultsModule-results')))
@@ -133,7 +174,6 @@ class WebScraping:
                     parsed_new_row['DateTime'] = parse_date(news.find_element(
                         by=By.CLASS_NAME, value='Timestamp-template-now').text)
                 except Exception as error:
-                    logging.warning(error)
                     try:
                         # Retry with older timestamp template
                         parsed_new_row['DateTime'] = parse_date(news.find_element(
@@ -148,7 +188,6 @@ class WebScraping:
             return pd.DataFrame(parsed_news)
         except Exception as error:
             logging.exception(error)
-            self.browser.driver.refresh()
             raise WebScrapingError
 
 
@@ -158,6 +197,14 @@ class WebScraping:
 
         logging.info('Performing Search on Page')
         self.perform_search(search_string)
+
+        logging.info('Add Categories filter')
+        try:
+            self.add_category_filter()
+        except Exception as error:
+            logging.exception(error)
+            logging.info('Error when applying filters. '\
+                         'Running without filters applied.')
 
         logging.info('Processing Search Result Page')
         try:
