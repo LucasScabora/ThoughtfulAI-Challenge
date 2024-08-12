@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from tenacity import (retry, retry_if_exception_type,
                       stop_after_attempt, wait_random)
 
-from api.utils import parse_date, download_image
+from api.utils import parse_date, download_image, continue_by_time_period
 from api.constants import BASE_URL, TIMEOUT_SECONDS, CATEGORY_FILTER
 
 
@@ -23,6 +23,7 @@ class WebScraping:
     def __init__(self):
         self.driver = None
         self.logger = logging.getLogger(__name__)
+        self.continue_scraping = True
 
 
     def set_chrome_options(self):
@@ -54,6 +55,7 @@ class WebScraping:
         except Exception as error:
             logging.exception(error)
             raise WebScrapingError
+
 
     @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
            stop=stop_after_attempt(3), wait=wait_random(min=1, max=3))
@@ -92,9 +94,22 @@ class WebScraping:
 
     @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
            stop=stop_after_attempt(3), wait=wait_random(min=1, max=3))
+    def go_to_next_page(self) -> None:
+        logging.info('Not achieved Month threshold, go to next page')
+        try:
+            self.browser.click_element_when_visible(
+                'class=Pagination-nextPage')
+        except Exception as error:
+            logging.exception(error)
+            self.browser.driver.refresh()
+            raise WebScrapingError
+
+
+    @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
+           stop=stop_after_attempt(3), wait=wait_random(min=1, max=3))
     def perform_search(self, search_string:str) -> None:
         try:
-            logging.info('Applying Newest sorting')
+            logging.info('Performing Search')
 
             # Click on magnifying glass
             self.browser.click_element_when_visible(
@@ -107,11 +122,11 @@ class WebScraping:
                 'class=SearchOverlay-search-submit')
 
             # Sort by Newest
+            logging.info('Applying Newest sorting')
             sort_by_droplist = self.browser.find_element(
                 'class=Select-input')
             select = Select(sort_by_droplist)
             select.select_by_visible_text('Newest')
-
             logging.info('Applied Newest sorting')
         except Exception as error:
             logging.exception(error)
@@ -150,36 +165,33 @@ class WebScraping:
 
                 parsed_new_row['Title'] = str(news.get_attribute('data-gtm-region'))
                 
-                # News Description
+                # News Description (sometimes do no exists)
                 try:
                     parsed_new_row['Description'] = str(news.find_element(
                         by=By.CLASS_NAME, value='PagePromo-description').text)
                 except Exception as error:
                     parsed_new_row['Description'] = ''
-                    logging.exception(error)
 
-                # Download and save image
+                # Download and save image (sometimes do no exists)
                 try:
                     parsed_new_row['Image'] = download_image(
                         parsed_new_row['URL'],
                         news.find_element(by=By.CLASS_NAME,
                                           value='Image').get_attribute('src'))
-                except Exception as error:
+                except Exception:
                     parsed_new_row['Image'] = 'Image Not Found'
-                    logging.exception(error)
 
                 # Parse News DateTime (default not found)
-                parsed_new_row['DateTime'] = 'DateTime Not Found'
                 try:
                     parsed_new_row['DateTime'] = parse_date(news.find_element(
                         by=By.CLASS_NAME, value='Timestamp-template-now').text)
-                except Exception as error:
+                except Exception:
                     try:
                         # Retry with older timestamp template
                         parsed_new_row['DateTime'] = parse_date(news.find_element(
                             by=By.CLASS_NAME, value='Timestamp-template').text)
-                    except Exception as retry_error:
-                        logging.exception(retry_error)
+                    except Exception:
+                        parsed_new_row['DateTime'] = 'DateTime Not Found'
         
                 # Append parsed row to DataFrame
                 parsed_news.append(parsed_new_row)
@@ -206,10 +218,22 @@ class WebScraping:
             logging.info('Error when applying filters. '\
                          'Running without filters applied.')
 
-        logging.info('Processing Search Result Page')
-        try:
-            df = self.process_results()
-        except Exception as error:
-            df = pd.DataFrame()
-            logging.exception(error)
+        page_number = 1
+        df = pd.DataFrame()
+        while self.continue_scraping:
+            logging.info(f'Processing Search Result page {page_number}')
+            try:
+                # Process Page
+                df_page = self.process_results()
+                # Combine Page results with current results
+                df = pd.concat([df, df_page], ignore_index=True)
+
+                # Check months limit
+                self.continue_scraping = continue_by_time_period(df_page)
+                if self.continue_scraping:
+                    self.go_to_next_page()
+                    page_number += 1
+            except Exception as error:
+                # if error or last page, stop appending DataFrames
+                logging.exception(error)
         return df
