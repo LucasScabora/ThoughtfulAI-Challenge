@@ -34,6 +34,7 @@ class WebScraping:
         options.add_argument('--disable-gpu')
         options.add_argument('--disable-web-security')
         options.add_argument('--start-maximized')
+        options.add_argument('--incognito')
         options.add_argument('--remote-debugging-port=9222')
         options.add_experimental_option('excludeSwitches',
                                         ['enable-logging'])
@@ -63,11 +64,6 @@ class WebScraping:
                 'class=fancybox-item.fancybox-close'):
                 self.browser.click_element_when_clickable(
                     'class=fancybox-item.fancybox-close')
-
-            if self.browser.is_element_enabled(
-                'class=ot-floating-button__close'):
-                self.browser.click_element_when_clickable(
-                    'class=ot-floating-button__close')
 
             logging.info('Overlay popup disabled')
         except Exception as error:
