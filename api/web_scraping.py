@@ -57,11 +57,28 @@ class WebScraping:
             raise WebScrapingError
 
 
+    def disable_popup_overlay(self):
+        try:
+            if self.browser.is_element_enabled(
+                'class=fancybox-item.fancybox-close'):
+                self.browser.click_element_when_clickable(
+                    'class=fancybox-item.fancybox-close')
+                logging.info('Overlay popup disabled')
+        except Exception as error:
+            logging.exception(error)
+
+
     @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
            stop=stop_after_attempt(3), wait=wait_random(min=1, max=3))
     def add_category_filter(self) -> None:
         try:
             logging.info(f'Applying Category filter: {CATEGORY_FILTER}')
+
+            # Refresh page after latest operations
+            self.browser.driver.refresh()
+
+            # Disable Popup overlay, if it exists
+            self.disable_popup_overlay()
 
             # Open Filters
             self.browser.click_element_when_visible(
@@ -88,7 +105,6 @@ class WebScraping:
             logging.info(f'Applied Category filter: {CATEGORY_FILTER}')
         except Exception as error:
             logging.exception(error)
-            self.browser.driver.refresh()
             raise WebScrapingError
 
 
@@ -110,6 +126,9 @@ class WebScraping:
     def perform_search(self, search_string:str) -> None:
         try:
             logging.info('Performing Search')
+
+            # Disable Popup overlay, if it exists
+            self.disable_popup_overlay()
 
             # Click on magnifying glass
             self.browser.click_element_when_visible(
@@ -140,6 +159,9 @@ class WebScraping:
         try:
             # Refresh page so the Timestamps appears
             self.browser.driver.refresh()
+
+            # Disable Popup overlay, if it exists
+            self.disable_popup_overlay()
 
             # Wait for the search results to appear
             WebDriverWait(self.browser.driver, TIMEOUT_SECONDS).until(
@@ -203,7 +225,7 @@ class WebScraping:
             raise WebScrapingError
 
 
-    def scrape_page(self, search_string:str):
+    def scrape_pages(self, search_string:str):
         logging.info('Starting Scraping the Page')
         self.open_webdriver()
 

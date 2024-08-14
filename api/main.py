@@ -13,7 +13,7 @@ def extract_news_data():
 
     # Perform the scraping
     scraper = WebScraping()
-    df = scraper.scrape_page(search_string=SEARCH_KEYWORD)
+    df = scraper.scrape_pages(search_string=SEARCH_KEYWORD)
     if not df.empty:
         text_processing = TextProcessing()
         df = text_processing.post_process_texts(df)

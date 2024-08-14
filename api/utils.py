@@ -9,6 +9,9 @@ from api.constants import OUTPUT_FOLDER, MONTHS_PERIOD
 
 
 def parse_date(timestamp:str) -> str:
+    # Remove spaces from the start/end of string
+    timestamp = timestamp.strip()
+
     # get base datetime = Today
     today_datetime = datetime.now()
 
@@ -38,7 +41,7 @@ def parse_date(timestamp:str) -> str:
         return datetime.strptime(timestamp, '%B %d, %Y').isoformat(
             timespec='minutes')
     except Exception:
-        logging.exception(f'Error processing date: {timestamp}')
+        logging.warning(f'Error processing date: {timestamp}')
         return 'Error processing date'
 
 
