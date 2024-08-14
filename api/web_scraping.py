@@ -59,8 +59,10 @@ class WebScraping:
 
     def disable_popup_overlay(self):
         try:
-            self.browser.click_element_when_clickable(
-                'class=ot-close-icon')
+            WebDriverWait(self.browser.driver, TIMEOUT_SECONDS).until(
+                EC.element_to_be_clickable(
+                    (By.CSS_SELECTOR,
+                     '#onetrust-accept-btn-handler')))
         except:
             logging.info('Skipping closing Advertisement Popup')
 
