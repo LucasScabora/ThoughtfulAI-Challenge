@@ -63,7 +63,13 @@ class WebScraping:
                 'class=fancybox-item.fancybox-close'):
                 self.browser.click_element_when_clickable(
                     'class=fancybox-item.fancybox-close')
-                logging.info('Overlay popup disabled')
+
+            if self.browser.is_element_enabled(
+                'class=ot-floating-button__close'):
+                self.browser.click_element_when_clickable(
+                    'class=ot-floating-button__close')
+
+            logging.info('Overlay popup disabled')
         except Exception as error:
             logging.exception(error)
 
