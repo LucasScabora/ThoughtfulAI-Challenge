@@ -59,19 +59,16 @@ class WebScraping:
 
     def disable_popup_overlay(self):
         try:
-            if self.browser.is_element_enabled(
-                'class=fancybox-item.fancybox-close'):
-                self.browser.click_element_when_clickable(
-                    'class=fancybox-item.fancybox-close')
+            self.browser.click_element_when_clickable(
+                'class=ot-close-icon')
+        except:
+            logging.info('Skipping closing Advertisement Popup')
 
-            if self.browser.is_element_enabled(
-                'class=ot-close-icon'):
-                self.browser.click_element_when_clickable(
-                    'class=ot-close-icon')
-
-            logging.info('Overlay popup disabled')
-        except Exception as error:
-            logging.exception(error)
+        try:
+            self.browser.click_element_when_clickable(
+                'class=fancybox-item.fancybox-close')
+        except:
+            logging.info('Skipping closing Fancybox Popup')
 
 
     @retry(reraise=True, retry=retry_if_exception_type(WebScrapingError),
